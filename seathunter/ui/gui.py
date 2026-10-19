@@ -50,6 +50,7 @@ class GuiApp:
             session_manager=self.session_mgr,
             interval=settings["interval"],
             max_try_times=settings["max_try_times"],
+            extended_retry_minutes=settings.get("extended_retry_minutes", 0),
         )
         self.engine = SchedulerEngine(
             config_manager=self.config,
@@ -130,15 +131,14 @@ class GuiApp:
         # Buttons at bottom
         btn_frame = ttk.Frame(frame)
         btn_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
-        ttk.Button(btn_frame, text="添加方案", command=self._add_plan_dialog).pack(
-            side=tk.LEFT, padx=2,
-        )
-        ttk.Button(btn_frame, text="删除选中", command=self._delete_selected_plans).pack(
-            side=tk.LEFT, padx=2,
-        )
-        ttk.Button(
+        self.add_plan_btn = ttk.Button(btn_frame, text="添加方案", command=self._add_plan_dialog)
+        self.add_plan_btn.pack(side=tk.LEFT, padx=2)
+        self.del_plan_btn = ttk.Button(btn_frame, text="删除选中", command=self._delete_selected_plans)
+        self.del_plan_btn.pack(side=tk.LEFT, padx=2)
+        self.batch_time_btn = ttk.Button(
             btn_frame, text="批量修改时间", command=self._batch_change_time_dialog,
-        ).pack(side=tk.LEFT, padx=2)
+        )
+        self.batch_time_btn.pack(side=tk.LEFT, padx=2)
 
         # Treeview fills remaining space
         tree_frame = ttk.Frame(frame)
@@ -244,18 +244,22 @@ class GuiApp:
         ttk.Separator(btn_frame, orient=tk.VERTICAL).pack(
             side=tk.LEFT, fill=tk.Y, padx=8,
         )
-        ttk.Button(
+        self.add_weekday_btn = ttk.Button(
             btn_frame, text="添加按星期调度", command=self._add_weekday_schedule_dialog,
-        ).pack(side=tk.LEFT, padx=2)
-        ttk.Button(
+        )
+        self.add_weekday_btn.pack(side=tk.LEFT, padx=2)
+        self.add_date_btn = ttk.Button(
             btn_frame, text="添加按日期调度", command=self._add_date_schedule_dialog,
-        ).pack(side=tk.LEFT, padx=2)
-        ttk.Button(
+        )
+        self.add_date_btn.pack(side=tk.LEFT, padx=2)
+        self.toggle_sched_btn = ttk.Button(
             btn_frame, text="切换启用", command=self._toggle_schedule_enabled,
-        ).pack(side=tk.LEFT, padx=2)
-        ttk.Button(
+        )
+        self.toggle_sched_btn.pack(side=tk.LEFT, padx=2)
+        self.del_sched_btn = ttk.Button(
             btn_frame, text="删除选中", command=self._delete_selected_schedules,
-        ).pack(side=tk.LEFT, padx=2)
+        )
+        self.del_sched_btn.pack(side=tk.LEFT, padx=2)
 
         # Engine running status indicator
         self.scheduler_status_label = tk.Label(
@@ -337,6 +341,14 @@ class GuiApp:
             s_frame, from_=1, to=999, textvariable=self.max_try_var, width=10,
         )
         self.max_try_entry.grid(row=1, column=1, padx=10, pady=8)
+
+        ttk.Label(s_frame, text="失败后持续重试（分钟）:").grid(row=2, column=0, sticky=tk.W, pady=8)
+        self.extended_var = tk.StringVar()
+        self.extended_entry = ttk.Spinbox(
+            s_frame, from_=0, to=120, increment=5, textvariable=self.extended_var, width=10,
+        )
+        self.extended_entry.grid(row=2, column=1, padx=10, pady=8)
+        ttk.Label(s_frame, text="密集重试全败后每45秒轮询捡漏，0=关闭").grid(row=2, column=2, sticky=tk.W)
 
         ttk.Button(frame, text="保存设置", command=self._save_settings).pack(pady=20)
 
@@ -479,6 +491,8 @@ class GuiApp:
             ))
 
     def _add_plan_dialog(self):
+        if self._guard_config_edit():
+            return
         if not self._rooms_ready:
             messagebox.showwarning("提示", "房间数据尚未加载完成，请稍后再试")
             return
@@ -644,6 +658,8 @@ class GuiApp:
         dlg.destroy()
 
     def _delete_selected_plans(self):
+        if self._guard_config_edit():
+            return
         selected = self.plans_tree.selection()
         if not selected:
             messagebox.showinfo("提示", "请先选择要删除的方案")
@@ -664,6 +680,8 @@ class GuiApp:
         self._refresh_plans_tree()
 
     def _batch_change_time_dialog(self):
+        if self._guard_config_edit():
+            return
         selected = self.plans_tree.selection()
         if not selected:
             messagebox.showinfo("提示", "请先选择要修改的方案")
@@ -945,6 +963,7 @@ class GuiApp:
         self.engine.start()
         self.scheduler_status_label.config(text="● 调度运行中", fg="green")
         self.status_bar.config(text="调度引擎已启动")
+        self._set_config_editable(False)
         self._schedule_status_refresh()
 
     def _stop_scheduler(self):
@@ -952,10 +971,43 @@ class GuiApp:
             self.engine.stop()
             self.scheduler_status_label.config(text="● 调度未运行", fg="red")
             self.status_bar.config(text="调度引擎已停止")
+            self._set_config_editable(True)
         else:
             messagebox.showinfo("提示", "调度引擎未在运行")
 
+    # 配置编辑类按钮(方案增删改、调度增删切换)。调度运行时置灰,
+    # 因为 engine 进入倒计时后会冻结当前方案,运行中改配置不会生效,
+    # 且可能造成"配置显示与实际执行不一致"。登录与改设置不受此限制。
+    CONFIG_EDIT_BTNS = (
+        "add_plan_btn", "del_plan_btn", "batch_time_btn",
+        "add_weekday_btn", "add_date_btn", "toggle_sched_btn", "del_sched_btn",
+    )
+
+    def _set_config_editable(self, editable: bool):
+        state = tk.NORMAL if editable else tk.DISABLED
+        for name in self.CONFIG_EDIT_BTNS:
+            btn = getattr(self, name, None)
+            if btn is not None:
+                try:
+                    btn.config(state=state)
+                except tk.TclError:
+                    pass
+
+    def _guard_config_edit(self) -> bool:
+        """调度运行时禁止改配置。返回 True 表示已拦截(调用方应 return)。"""
+        if self.engine.is_running:
+            messagebox.showwarning(
+                "无法修改",
+                "调度引擎正在运行,不能修改方案或调度配置。\n\n"
+                "请先停止调度,修改完成后再重新启动。\n"
+                "(运行中改配置不会生效,且会导致配置与实际预约不一致)",
+            )
+            return True
+        return False
+
     def _add_weekday_schedule_dialog(self):
+        if self._guard_config_edit():
+            return
         plans = self.config.get_plans()
         if not plans:
             messagebox.showwarning("提示", "请先添加方案")
@@ -1021,6 +1073,8 @@ class GuiApp:
         ttk.Button(btn_frame, text="取消", command=dlg.destroy).pack(side=tk.LEFT, padx=10)
 
     def _add_date_schedule_dialog(self):
+        if self._guard_config_edit():
+            return
         plans = self.config.get_plans()
         if not plans:
             messagebox.showwarning("提示", "请先添加方案")
@@ -1086,6 +1140,8 @@ class GuiApp:
         ttk.Button(btn_frame, text="取消", command=dlg.destroy).pack(side=tk.LEFT, padx=10)
 
     def _delete_selected_schedules(self):
+        if self._guard_config_edit():
+            return
         selected = self.schedules_tree.selection()
         if not selected:
             messagebox.showinfo("提示", "请先选择要删除的调度")
@@ -1107,6 +1163,8 @@ class GuiApp:
         self._refresh_schedules_tree()
 
     def _toggle_schedule_enabled(self):
+        if self._guard_config_edit():
+            return
         selected = self.schedules_tree.selection()
         if not selected:
             messagebox.showinfo("提示", "请先选择要切换的调度")
@@ -1178,11 +1236,13 @@ class GuiApp:
         settings = self.config.get_settings()
         self.interval_var.set(str(settings["interval"]))
         self.max_try_var.set(str(settings["max_try_times"]))
+        self.extended_var.set(str(settings.get("extended_retry_minutes", 0)))
 
     def _save_settings(self):
         try:
             interval = int(self.interval_var.get())
             max_try = int(self.max_try_var.get())
+            extended = int(self.extended_var.get())
         except ValueError:
             messagebox.showerror("错误", "请输入有效数字")
             return
@@ -1192,10 +1252,15 @@ class GuiApp:
         if max_try < 1:
             messagebox.showerror("错误", "重试次数不能小于1")
             return
+        if not 0 <= extended <= 120:
+            messagebox.showerror("错误", "持续重试时间须在 0-120 分钟之间")
+            return
 
-        self.config.update_settings(interval=interval, max_try_times=max_try)
+        self.config.update_settings(interval=interval, max_try_times=max_try,
+                                    extended_retry_minutes=extended)
         self.runner.interval = interval
         self.runner.max_try_times = max_try
+        self.runner.extended_retry_minutes = extended
         messagebox.showinfo("成功", "设置已保存")
 
     # ================================================================

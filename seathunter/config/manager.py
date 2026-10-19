@@ -91,7 +91,8 @@ class ConfigManager:
 
     def get_settings(self) -> Dict[str, Any]:
         """Get settings with defaults."""
-        defaults = {"interval": 5, "max_try_times": 10, "auto_relogin": True}
+        defaults = {"interval": 5, "max_try_times": 10,
+                    "extended_retry_minutes": 0, "auto_relogin": True}
         settings = self.config.get("settings", {})
         return {**defaults, **settings}
 
@@ -141,13 +142,16 @@ class ConfigManager:
         self.config["user"] = user
         self.save()
 
-    def update_settings(self, interval: int = None, max_try_times: int = None):
+    def update_settings(self, interval: int = None, max_try_times: int = None,
+                        extended_retry_minutes: int = None):
         """Update settings."""
         settings = self.config.get("settings", {})
         if interval is not None:
             settings["interval"] = interval
         if max_try_times is not None:
             settings["max_try_times"] = max_try_times
+        if extended_retry_minutes is not None:
+            settings["extended_retry_minutes"] = extended_retry_minutes
         self.config["settings"] = settings
         self.save()
 

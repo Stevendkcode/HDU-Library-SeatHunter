@@ -25,6 +25,12 @@ def generate_booking_data(begin_time: dt.datetime, duration_hours: int,
     """
     if not seat_ids or not booker_uids:
         raise ValueError("seat_ids and booker_uids must not be empty")
+    if len(seat_ids) != 1 or len(booker_uids) != 1:
+        # MD5 签名串固定拼接 seats[0]/seatBookers[0]，多座位会产生无效签名
+        raise ValueError(
+            f"签名算法仅支持单座位预约（当前 seats={len(seat_ids)}）。"
+            "多座位请拆成多个方案，通过调度的 plan_ids 组合。"
+        )
 
     data = {}
     data["beginTime"] = int(begin_time.timestamp())

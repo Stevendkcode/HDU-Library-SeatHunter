@@ -6,13 +6,15 @@ Combines cookie-based login and Playwright login with auto-relogin support.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Optional, Tuple, Dict
 
 import requests
 
 from seathunter.auth.cookie_store import CookieStore
-from seathunter.auth.playwright_login import playwright_login, LOGIN_ERR_NETWORK
+from seathunter.auth.playwright_login import playwright_login, LOGIN_ERR_NETWORK, LOGIN_ERR_AUTH
 from seathunter.config.manager import ConfigManager
+from seathunter.config.schema import SEAT_PROBE_PARAMS
 from seathunter.platform_.paths import get_config_path
 
 logger = logging.getLogger("seathunter.auth")
@@ -84,12 +86,8 @@ class SessionManager:
 
         # Validate cookies by making a test request
         try:
-            params = {
-                "space_category[category_id]": "591",
-                "space_category[content_id]": "3",
-            }
             url = self.base_url + "/Seat/Index/searchSeats"
-            resp = self.session.get(url=url, params=params, timeout=15)
+            resp = self.session.get(url=url, params=SEAT_PROBE_PARAMS, timeout=15)
             data = resp.json()
             if isinstance(data, dict) and data.get("data") and data["data"].get("uid"):
                 self.uid = str(data["data"]["uid"])
@@ -133,26 +131,35 @@ class SessionManager:
         if not self.uid:
             self._fetch_user_info_from_api()
 
+        # Empty uid means we never actually got a valid session (e.g. CAS
+        # redirected instead of logging in). Never save or report success.
+        if not self.uid:
+            logger.error("浏览器登录流程完成但 uid 为空，丢弃 cookies 防止污染缓存")
+            self.cookie_store.clear()
+            self.session.cookies.clear()
+            return (False, LOGIN_ERR_AUTH)
+
         # Save cookies
         self.cookie_store.save(cookies, self.uid, self.name)
         logger.info("Login successful (cookies saved)")
         return (True, None)
 
     def _fetch_user_info_from_api(self):
-        """Fallback: get user info via API call."""
-        try:
-            params = {
-                "space_category[category_id]": "591",
-                "space_category[content_id]": "3",
-            }
-            url = self.base_url + "/Seat/Index/searchSeats"
-            resp = self.session.get(url=url, params=params, timeout=15)
-            data = resp.json()
-            if isinstance(data, dict) and data.get("data"):
-                self.uid = str(data["data"].get("uid", ""))
-                self.name = data["data"].get("uname", "")
-        except Exception:
-            pass
+        """Fallback: get user info via API call (one retry — a transient
+        network blip here must not cost an otherwise-valid login)."""
+        for attempt in range(2):
+            try:
+                url = self.base_url + "/Seat/Index/searchSeats"
+                resp = self.session.get(url=url, params=SEAT_PROBE_PARAMS, timeout=15)
+                data = resp.json()
+                if isinstance(data, dict) and data.get("data"):
+                    self.uid = str(data["data"].get("uid", ""))
+                    self.name = data["data"].get("uname", "")
+                    return
+            except Exception:
+                pass
+            if attempt == 0:
+                time.sleep(1)
 
 
 def json_dumps_truncate(data, max_len=200):

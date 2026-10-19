@@ -8,6 +8,8 @@ from typing import List, Optional, Tuple, Dict, Any
 
 BOOKING_ADVANCE_DAYS = 2  # Seat for date X opens at (X-2) 20:00
 
+WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
 
 @dataclass
 class DateMapping:

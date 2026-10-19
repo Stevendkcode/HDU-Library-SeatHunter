@@ -7,12 +7,14 @@ import os
 from logging.handlers import RotatingFileHandler
 
 
-def setup_logging(log_dir: str = None, level: int = logging.INFO) -> logging.Logger:
+def setup_logging(log_dir: str = None, level: int = logging.DEBUG) -> logging.Logger:
     """Configure the seathunter logger with console and file output.
 
     Args:
         log_dir: Directory for log files. If None, uses default.
-        level: Logging level.
+        level: Logging level. Defaults to DEBUG so that the file handler
+            (which is always DEBUG) actually receives DEBUG messages;
+            the console handler is kept at INFO to avoid terminal spam.
 
     Returns:
         The configured root seathunter logger.
@@ -30,9 +32,9 @@ def setup_logging(log_dir: str = None, level: int = logging.INFO) -> logging.Log
     if logger.handlers:
         return logger
 
-    # Console handler
+    # Console handler (kept at INFO to avoid terminal spam from DEBUG noise)
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(level)
+    console_handler.setLevel(logging.INFO)
     console_fmt = logging.Formatter(
         "%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
     )

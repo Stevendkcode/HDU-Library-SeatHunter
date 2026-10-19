@@ -15,6 +15,7 @@ schedules: []
 settings:
   interval: 5
   max_try_times: 10
+  extended_retry_minutes: 0
   auto_relogin: true
 
 api:
@@ -56,4 +57,11 @@ API_ENDPOINTS = {
     "book_seat": "/Seat/Index/bookSeats",
     "login": "/User/Index/login",
     "index": "/",
+}
+
+# Lightweight searchSeats probe shared by cookie validation (session_manager)
+# and connection pre-warm (ApiClient.prewarm_connection)
+SEAT_PROBE_PARAMS = {
+    "space_category[category_id]": "591",
+    "space_category[content_id]": "3",
 }

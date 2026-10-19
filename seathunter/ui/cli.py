@@ -53,6 +53,7 @@ class CliUI:
             session_manager=self.session_mgr,
             interval=settings["interval"],
             max_try_times=settings["max_try_times"],
+            extended_retry_minutes=settings.get("extended_retry_minutes", 0),
         )
         self.engine = SchedulerEngine(
             config_manager=self.config,

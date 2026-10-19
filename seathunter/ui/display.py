@@ -6,6 +6,8 @@ import sys
 from datetime import datetime
 from typing import List
 
+from seathunter.models.schedule import WEEKDAY_NAMES  # noqa: F401 (re-export)
+
 
 # ANSI color codes
 class Color:
@@ -95,6 +97,3 @@ def print_warning(message: str):
 
 def print_info(message: str):
     print(colorize(f"[信息] {message}", Color.CYAN))
-
-
-WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]

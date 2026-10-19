@@ -197,6 +197,7 @@ def run_daemon(config_path: str):
         session_manager=session_mgr,
         interval=settings["interval"],
         max_try_times=settings["max_try_times"],
+        extended_retry_minutes=settings.get("extended_retry_minutes", 0),
     )
 
     engine = SchedulerEngine(

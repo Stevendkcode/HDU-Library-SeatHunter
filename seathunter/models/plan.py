@@ -95,6 +95,11 @@ class Plan:
                         f"Plan '{self.id}': duration {self.duration_hours}h exceeds "
                         f"available {max_duration}h from {self.begin_time}"
                     )
+        if len(self.seats) > 1:
+            warnings.append(
+                f"方案 '{self.id}': 配置了 {len(self.seats)} 个座位，"
+                "预约签名仅支持单座位，请拆分为多个方案"
+            )
         if not self.seats:
             warnings.append(f"Plan '{self.id}': no seats defined")
         return warnings

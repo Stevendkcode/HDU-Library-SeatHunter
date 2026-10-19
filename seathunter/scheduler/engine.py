@@ -11,9 +11,9 @@ import threading
 from datetime import datetime
 from typing import List, Optional, Callable, Dict, Any
 
-from seathunter.models.schedule import Schedule
+from seathunter.models.schedule import Schedule, WEEKDAY_NAMES
 from seathunter.models.booking_result import BookingResult
-from seathunter.scheduler.booking_runner import BookingRunner, WEEKDAY_NAMES
+from seathunter.scheduler.booking_runner import BookingRunner
 from seathunter.auth.session_manager import SessionManager
 from seathunter.config.manager import ConfigManager
 
@@ -173,24 +173,42 @@ class SchedulerEngine:
                 if len(triggers) > 1:
                     plan_desc = f"[{len(triggers)}个调度] " + plan_desc
 
-                # Countdown phase (interruptible, 1-second ticks)
+                # Countdown phase (interruptible, 1-second ticks).
+                # Pre-warms the TCP/TLS connection near the trigger so the
+                # booking POST reuses a hot connection; final approach waits
+                # precisely instead of quantized 1s ticks.
+                PREWARM_EARLY_S = 10.0
+                PREWARM_FINAL_S = 3.0
+                warmed_early = False
+
                 while not self._stop_event.is_set():
                     now = datetime.now()
                     remaining = (trigger_time - now).total_seconds()
                     if remaining <= 0:
                         break
+                    if remaining <= PREWARM_FINAL_S:
+                        self.runner.prewarm()  # final warm touch at T-3s
+                        remaining = max(0.0, (trigger_time - datetime.now()).total_seconds())
+                        self._stop_event.wait(timeout=remaining)  # precise final wait
+                        break
+                    if not warmed_early and remaining <= PREWARM_EARLY_S:
+                        warmed_early = True
+                        logger.debug("Pre-warming connection (T-%.1fs)", remaining)
+                        self.runner.prewarm()
                     if self.on_countdown_tick:
                         self.on_countdown_tick(int(remaining), trigger_time, plan_desc)
-                    self._stop_event.wait(timeout=1.0)
+                    # Tick every 1s, but never cross the T-3s boundary
+                    self._stop_event.wait(timeout=min(1.0, remaining - PREWARM_FINAL_S))
 
                 if self._stop_event.is_set():
                     break
 
                 # Booking phase - execute for each grouped trigger's plans
-                logger.info("Trigger time reached (%d schedule(s)), booking for %s (%s)",
+                logger.info("Trigger time reached (%d schedule(s)), booking for %s (%s), plan_ids=%s",
                            len(triggers),
                            target_date.strftime("%Y-%m-%d"),
-                           WEEKDAY_NAMES[target_date.weekday()])
+                           WEEKDAY_NAMES[target_date.weekday()],
+                           all_plan_ids)
 
                 if self.on_booking_start:
                     self.on_booking_start(target_date, all_plan_ids)

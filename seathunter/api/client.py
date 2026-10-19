@@ -15,6 +15,7 @@ import requests
 
 from seathunter.api.token import generate_booking_data
 from seathunter.auth.session_manager import SessionManager
+from seathunter.config.schema import SEAT_PROBE_PARAMS
 
 logger = logging.getLogger("seathunter.api")
 
@@ -89,6 +90,27 @@ class ApiClient:
 
         return rooms
 
+    def prewarm_connection(self, timeout: tuple = (2.0, 1.0)):
+        """Lightweight GET to establish/reuse the TCP+TLS connection.
+
+        Fired shortly before the trigger time so the booking POST reuses a
+        warm connection instead of paying the handshake at T=0. Even if the
+        session is unauthenticated the handshake still completes — which is
+        the whole point. Never raises.
+
+        timeout is a (connect, read) tuple so the worst-case block is bounded
+        at 3s: the T-3s prewarm can never delay the booking POST past ~T.
+        """
+        try:
+            self.session.get(
+                url=self.base_url + "/Seat/Index/searchSeats",
+                params=SEAT_PROBE_PARAMS,
+                timeout=timeout,
+            )
+            logger.debug("Connection pre-warmed")
+        except Exception as e:
+            logger.debug("Prewarm request failed (non-fatal): %s", e)
+
     def book_seat(self, begin_time: datetime, duration_hours: int,
                   seat_ids: List[str], booker_uids: List[str]) -> Dict:
         """Execute a single booking attempt.
@@ -99,9 +121,10 @@ class ApiClient:
             begin_time, duration_hours, seat_ids, booker_uids
         )
         url = self.base_url + "/Seat/Index/bookSeats"
+        # Note: Content-Length is deliberately NOT set here — requests computes
+        # and overwrites it unconditionally, so any manual value never reaches
+        # the wire (verified empirically against a local HTTP server).
         self.session.headers["Api-Token"] = api_token
-        # Content-Length kept for API compatibility (server-side anti-tampering check)
-        self.session.headers["Content-Length"] = "114"
         try:
             resp = self.session.post(url=url, data=data, timeout=30)
             return resp.json()
@@ -110,7 +133,6 @@ class ApiClient:
             return {"CODE": "error", "MESSAGE": str(e)}
         finally:
             self.session.headers.pop("Api-Token", None)
-            self.session.headers.pop("Content-Length", None)
 
     def get_floor_names(self, rooms: Dict, room_name: str) -> List[str]:
         """Get floor list for a room."""
