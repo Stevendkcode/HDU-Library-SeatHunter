@@ -27,10 +27,14 @@ jobs:
     - name: Install requirements
       run: pip install -r requirements.txt
 
-    # 核心修改：利用管道命令自动把 Secrets 里的账号和密码依次输入进去
+    # 关键：下载 Playwright 浏览器驱动，解决 Executable doesn't exist 报错
+    - name: Install Playwright browsers
+      run: playwright install
+
+    # 运行主程序：依次传入 学号、密码，如果失败询问是否重试时输入 n 退出
     - name: Run Seat Hunter
       env:
         USERNAME: ${{ secrets.USERNAME }}
         PASSWORD: ${{ secrets.PASSWORD }}
       run: |
-        printf "%s\n%s\n" "$USERNAME" "$PASSWORD" | python main.py
+        printf "%s\n%s\nn\n" "$USERNAME" "$PASSWORD" | python main.py
