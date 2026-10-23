@@ -1,7 +1,25 @@
-# 抢座配置
-seat:
-  # 你想抢的图书馆区域、楼层或座位偏好（可以根据项目原本的说明填写，或者保持默认）
-  room_id: "6" 
-  seat_id: "201"
-  # 预约时间段
-  time_slot: "09:00:00"
+user:
+  login_name: "23140541"
+  password: "81726688Ab"
+  org_id: "104"
+
+plans:
+  - id: "my_seat"
+    room_name: "杭韵数阁（六楼）"
+    floor_name: "6楼"
+    begin_time: "09:00:00"
+    duration_hours: 13
+    seats:
+      - seat_id: "201"
+        seat_num: "201"
+
+schedules:
+  - mode: weekdays
+    target_weekdays: [1, 2, 3, 4, 5，6,7]
+    plan_ids: ["my_seat"]
+    enabled: true
+
+settings:
+  interval: 5
+  max_try_times: 10
+  auto_relogin: true
