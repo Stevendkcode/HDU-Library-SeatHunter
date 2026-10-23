@@ -4,4 +4,4 @@ seat:
   room_id: "6" 
   seat_id: "201"
   # 预约时间段
-  time_slot: ""
+  time_slot: "09:00:00"
