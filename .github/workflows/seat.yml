@@ -27,14 +27,9 @@ jobs:
     - name: Install requirements
       run: pip install -r requirements.txt
 
-    # 关键：下载 Playwright 浏览器驱动，解决 Executable doesn't exist 报错
     - name: Install Playwright browsers
       run: playwright install
 
-    # 运行主程序：依次传入 学号、密码，如果失败询问是否重试时输入 n 退出
+    # 直接运行抢座脚本（因为它已经读取了 config.yaml 中的配置）
     - name: Run Seat Hunter
-      env:
-        USERNAME: ${{ secrets.USERNAME }}
-        PASSWORD: ${{ secrets.PASSWORD }}
-      run: |
-        printf "%s\n%s\nn\n" "$USERNAME" "$PASSWORD" | python main.py
+      run: python main.py --daemon
