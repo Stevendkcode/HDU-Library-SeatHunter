@@ -2,7 +2,7 @@ name: Auto Seat Hunter
 
 on:
   schedule:
-    - cron: '58 11 * * *'  # 每天 UTC 12:00（北京时间 20:00）自动触发
+    - cron: '50 11 * * *'  # 每天 UTC 11:50（北京时间 19:50）自动触发
   workflow_dispatch:
 
 jobs:
