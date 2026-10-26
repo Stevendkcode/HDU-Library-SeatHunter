@@ -2,7 +2,7 @@ name: Auto Seat Hunter
 
 on:
   schedule:
-    - cron: '40 11 * * *'  # 每天 UTC 11:40（北京时间 19:40）自动触发
+    - cron: '57 11 * * *'  # 北京时间 19:57
   workflow_dispatch:
 
 jobs:
@@ -37,6 +37,10 @@ jobs:
       run: |
         sed -i 's/login_name: ".*"/login_name: "'"$LIB_USER"'"/' config/config.yaml
         sed -i 's/password: ".*"/password: "'"$LIB_PASS"'"/' config/config.yaml
+
+    # 关键修复：强制将云端服务器时区改为北京时间（防止 8 小时时差导致的倒计时错误）
+    - name: Set timezone to Beijing Time
+      run: sudo timedatectl set-timezone Asia/Shanghai
 
     - name: Run Seat Hunter Daemon
       run: python main.py --daemon
