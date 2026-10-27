@@ -187,7 +187,7 @@ class ConfigManager:
         old_settings = raw.get("settings", {})
         v2["settings"] = {
             "interval": old_settings.get("interval", 5),
-            "max_try_times": old_settings.get("max_try_times", 10),
+            "max_try_times": old_settings.get("max_try_times", 12),
             "auto_relogin": True,
         }
 
