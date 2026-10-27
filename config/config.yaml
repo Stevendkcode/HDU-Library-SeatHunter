@@ -11,7 +11,7 @@ plans:
     begin_time: "09:00:00"
     duration_hours: 13
     seats:
-      - seat_id: "201"
+      - seat_id: "63097"
         seat_num: "201"
 
 schedules:
