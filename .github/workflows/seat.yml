@@ -1,8 +1,8 @@
 name: Auto Seat Hunter
 
 on:
-  schedule:
-    - cron: '57 11 * * *'  # 北京时间 19:57
+  #schedule:
+    #- cron: '57 11 * * *'  # 北京时间 19:57 取消自动运行
   workflow_dispatch:
 
 jobs:
