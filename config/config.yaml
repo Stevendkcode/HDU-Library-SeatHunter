@@ -21,6 +21,6 @@ schedules:
     enabled: true
 
 settings:
-  interval: 5.3
-  max_try_times: 12
+  interval: 5
+  max_try_times: 9
   auto_relogin: true
